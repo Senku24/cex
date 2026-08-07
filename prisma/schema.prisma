@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  username  String  @unique
+  password  String
+
+  orders    Order[]
+  fills     Fill[]
+  balances  Balance[]
+
+  @@map("users")
+}
+
+model Order {
+  id              Int          @id @default(autoincrement())
+  userId          Int
+  market          String
+  price           Decimal      @db.Decimal(18, 8)
+  qty             Decimal      @db.Decimal(18, 8)
+  filledQty       Decimal      @default(0) @db.Decimal(18, 8)
+
+  type            OrderType
+  side            OrderSide
+  status          OrderStatus  @default(PENDING)
+
+  createdAt       DateTime     @default(now())
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fills           Fill[]
+
+  @@index([userId])
+  @@index([market])
+  @@map("orders")
+}
+
+model Stock {
+  id        Int     @id @default(autoincrement())
+  name      String
+  symbol    String  @unique
+
+  fills     Fill[]
+
+  @@map("stocks")
+}
+
+model Fill {
+  id               Int        @id @default(autoincrement())
+
+  qty              Decimal    @db.Decimal(18, 8)
+  price            Decimal    @db.Decimal(18, 8)
+
+  side             OrderSide
+  type             OrderType
+
+  userId           Int
+  assetId          Int
+  originalOrderId  Int
+
+  createdAt        DateTime   @default(now())
+
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset            Stock      @relation(fields: [assetId], references: [id])
+  originalOrder    Order      @relation(fields: [originalOrderId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([assetId])
+  @@index([originalOrderId])
+  @@map("fills")
+}
+
+model Balance {
+  id        Int      @id @default(autoincrement())
+
+  userId    Int
+  asset     String
+
+  available Decimal @db.Decimal(18,8)
+  locked    Decimal @default(0) @db.Decimal(18,8)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, asset])
+}
