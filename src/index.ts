@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "./prisma";
 import { signupSchema } from "./schemas/auth";
+import { loginSchema } from "./schemas/auth";
 const app = express();
 app.use(express.json());
 
@@ -161,11 +162,31 @@ res.status(201).json({ token, userId: user.id, username: user.username });
 });
 
 app.post("/login", async (req, res) => {
-  // 1. find user by username
+  const result = loginSchema.safeParse(req.body);
 
-  // 2. compare hashed password
+  if (!result.success) {
+    return res.status(400).json({ error: result.error.issues });
+  }
 
-  // 3. return JWT / session token
+  const { username, password } = result.data;
+
+  const user = await prisma.user.findUnique({ where: { username } });
+  if (!user) {
+    return res.status(400).json({ error: "Invalid username or password" });
+  }
+
+  const passwordMatch = bcrypt.compareSync(password, user.password);
+  if (!passwordMatch) {
+    return res.status(400).json({ error: "Invalid username or password" });
+  }
+//change it after adding auth middleware
+  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, { expiresIn: "1h" });
+
+  return res.status(200).json({
+    token,
+    userId: user.id,
+    username: user.username,
+  });
 });
 
 // --------------------------------------------------
